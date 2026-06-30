@@ -220,6 +220,16 @@ function renderOubo() {
     }
   }
 
+  // 第二阶段：業界メモ（特定の業界を選んでいるときだけ、その業界の下に表示）
+  if (currentIndustry !== "__all__") {
+    const memo = (state.industryMemos && state.industryMemos[currentIndustry]) || "";
+    html += `<section class="industry-memo">
+      <h3 class="industry-memo__title">業界メモ：${esc(currentIndustry)}</h3>
+      <textarea class="industry-memo__text" id="industry-memo" rows="4"
+        placeholder="この業界を選んだ理由、業界研究のメモ、同業他社の比較など（入力欄から離れると自動保存）">${esc(memo)}</textarea>
+    </section>`;
+  }
+
   boardEl.innerHTML = html;
 }
 
@@ -460,6 +470,45 @@ function openKininaruEdit(c) {
   });
 }
 
+/* 進捗タイムラインの一覧 HTML を作る（日付の昇順、日付なしは最後）。 */
+function timelineHTML(c) {
+  const items = (c.timeline || []).slice().sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+  });
+  if (items.length === 0) {
+    return `<p class="timeline__empty">まだ記録がありません。下から追加できます。</p>`;
+  }
+  return `<ul class="timeline">
+    ${items
+      .map(
+        (t) => `<li class="timeline__item">
+      <span class="timeline__date">${esc(t.date || "日付なし")}</span>
+      <span class="timeline__text">${esc(t.text)}</span>
+      <button type="button" class="timeline__del" data-action="del-timeline" data-id="${c.id}" data-entry="${t.id}" title="削除">×</button>
+    </li>`
+      )
+      .join("")}
+  </ul>`;
+}
+
+/* 詳細フォームの入力値を会社オブジェクト c に書き戻す（保存はしない）。
+ * タイムラインの追加/削除でモーダルを開き直す前に、他の入力を失わないよう
+ * いったん c に反映させる用途でも使う。会社名が空のときは上書きしない。 */
+function commitDetailForm(c, f) {
+  const name = f.name.value.trim();
+  if (name) c.name = name;
+  c.role = f.role.value.trim();
+  c.stage = f.stage.value;
+  c.visa = f.visa.value;
+  c.interviewDate = f.interviewDate.value || "";
+  c.industry = f.industry.value.trim();
+  ensureIndustry(c.industry);
+  c.url = f.url.value.trim();
+  c.memo = f.memo.value; // メモは改行などを保つため trim しない
+}
+
 /* ------- 応募済みカードの詳細／編集モーダル ------- */
 function openOuboDetail(c) {
   openModal(`
@@ -512,6 +561,23 @@ function openOuboDetail(c) {
       </label>
       ${urlOpenRow(c.url)}
 
+      <!-- 第二阶段：会社メモ（自由記述） -->
+      <label class="field">
+        <span class="field__label">会社メモ</span>
+        <textarea name="memo" rows="4" placeholder="面接メモ、社風の印象、気づいたことなど">${esc(c.memo || "")}</textarea>
+      </label>
+
+      <!-- 第二阶段：進捗タイムライン（日付＋内容を手動で追加） -->
+      <div class="field">
+        <span class="field__label">進捗タイムライン</span>
+        ${timelineHTML(c)}
+        <div class="timeline-add">
+          <input type="date" id="tl-date" />
+          <input type="text" id="tl-text" placeholder="内容（例：一次面接 通過）" />
+          <button type="button" class="btn btn--small" data-action="add-timeline" data-id="${c.id}">追加</button>
+        </div>
+      </div>
+
       <div class="modal__actions modal__actions--split">
         <button type="button" class="btn btn--ghost btn--danger" data-action="delete-company" data-id="${c.id}">削除</button>
         <div class="modal__actions-right">
@@ -525,16 +591,8 @@ function openOuboDetail(c) {
   document.getElementById("form-detail").addEventListener("submit", (e) => {
     e.preventDefault();
     const f = e.target;
-    const name = f.name.value.trim();
-    if (!name) return;
-    c.name = name;
-    c.role = f.role.value.trim();
-    c.stage = f.stage.value;
-    c.visa = f.visa.value;
-    c.interviewDate = f.interviewDate.value || "";
-    c.industry = f.industry.value.trim();
-    ensureIndustry(c.industry);
-    c.url = f.url.value.trim();
+    if (!f.name.value.trim()) return; // 会社名は必須
+    commitDetailForm(c, f);
     saveState();
     closeModal();
     render();
@@ -731,6 +789,16 @@ boardEl.addEventListener("change", (e) => {
   }
 });
 
+/* 業界メモの自動保存（入力欄からフォーカスが外れた時に保存）。
+ * 再描画はしない＝入力中のカーソルや他の状態を壊さない。 */
+boardEl.addEventListener("focusout", (e) => {
+  if (e.target.id === "industry-memo" && currentIndustry !== "__all__") {
+    state.industryMemos = state.industryMemos || {};
+    state.industryMemos[currentIndustry] = e.target.value;
+    saveState();
+  }
+});
+
 /* 一括操作バーのボタン */
 bulkBarEl.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-action]");
@@ -776,6 +844,31 @@ modalEl.addEventListener("click", (e) => {
       btn.classList.toggle("is-on", c.favorite);
       saveState();
     }
+  } else if (action === "add-timeline") {
+    // タイムラインに 1 件追加（内容は必須、日付は任意）
+    const c = state.oubo.find((x) => x.id === id);
+    if (!c) return;
+    const dateEl = document.getElementById("tl-date");
+    const textEl = document.getElementById("tl-text");
+    const text = textEl.value.trim();
+    if (!text) {
+      textEl.focus();
+      return;
+    }
+    // 開き直す前に、編集中の他の入力値も c に反映しておく（消えないように）
+    commitDetailForm(c, document.getElementById("form-detail"));
+    c.timeline = c.timeline || [];
+    c.timeline.push({ id: genId(), date: dateEl.value || "", text });
+    saveState();
+    openOuboDetail(c); // 最新の状態で詳細を描き直す
+  } else if (action === "del-timeline") {
+    const c = state.oubo.find((x) => x.id === id);
+    if (!c) return;
+    const entryId = btn.dataset.entry;
+    commitDetailForm(c, document.getElementById("form-detail"));
+    c.timeline = (c.timeline || []).filter((t) => t.id !== entryId);
+    saveState();
+    openOuboDetail(c);
   }
 });
 

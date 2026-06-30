@@ -493,7 +493,8 @@ body {
   margin-left: 4px;
 }
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   font-family: var(--font-sans);
   font-size: 14px;
@@ -503,12 +504,124 @@ body {
   background: var(--cream);
   color: var(--ink);
 }
+.field textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.6;
+}
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   outline: none;
   border-color: var(--teal);
   background: #fff;
 }
+
+/* ---- 進捗タイムライン ---- */
+.timeline {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.timeline__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--cream);
+  border: 1px solid var(--teal-soft);
+  border-radius: 8px;
+  /* 左側に水色の細い縦線で「時系列」感を出す */
+  border-left: 3px solid var(--teal);
+}
+.timeline__date {
+  font-size: 12px;
+  color: var(--teal-deep);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.timeline__text {
+  font-size: 13px;
+  color: var(--ink);
+  flex: 1;
+  word-break: break-word;
+}
+.timeline__del {
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.timeline__del:hover { color: var(--danger); }
+.timeline__empty {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+}
+/* タイムライン追加欄（日付・内容・追加ボタン） */
+.timeline-add {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.timeline-add input[type="date"] { flex: 0 0 auto; }
+.timeline-add input[type="text"] {
+  flex: 1;
+  min-width: 120px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--teal-line);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--ink);
+}
+.timeline-add input[type="date"] {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--teal-line);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--ink);
+}
+.timeline-add input:focus { outline: none; border-color: var(--teal); background: #fff; }
+
+/* ---- 業界メモ（業界ビューの下部） ---- */
+.industry-memo {
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--teal-soft);
+}
+.industry-memo__title {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--teal-deep);
+  margin: 0 0 10px;
+}
+.industry-memo__text {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 12px 14px;
+  border: 1px solid var(--teal-line);
+  border-radius: 10px;
+  background: var(--cream);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 96px;
+}
+.industry-memo__text:focus { outline: none; border-color: var(--teal); background: #fff; }
 /* 横並び（ビザ＋面接日など） */
 .field-row { display: flex; gap: 12px; }
 .field-row .field { flex: 1; }
