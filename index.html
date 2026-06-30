@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>就活管理ツール</title>
+
+  <!-- フォント：見出しは明朝（雑誌風）、本文はゴシック。
+       オフラインでも崩れないよう system フォントを fallback に置く。 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ========== ヘッダー（気質パート：大きな余白・明朝・水色のグラデ） ========== -->
+  <header class="site-header">
+    <div class="site-header__inner">
+      <h1 class="site-title">就活管理</h1>
+      <p class="site-subtitle">応募の進捗と、考えを整理するためのボード</p>
+
+      <!-- データのバックアップ操作 -->
+      <div class="backup-actions">
+        <button type="button" class="btn btn--ghost" id="btn-export">エクスポート</button>
+        <button type="button" class="btn btn--ghost" id="btn-import">インポート</button>
+        <!-- インポート用の隠しファイル入力 -->
+        <input type="file" id="import-file" accept="application/json" hidden />
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== モジュール切り替えタブ（気になる / 応募済み） ========== -->
+  <nav class="module-tabs" id="module-tabs">
+    <button type="button" class="module-tab is-active" data-module="kininaru">気になる</button>
+    <button type="button" class="module-tab" data-module="oubo">応募済み</button>
+  </nav>
+
+  <!-- ========== メイン（JS がここに描画する） ========== -->
+  <main class="board" id="board"></main>
+
+  <!-- 選択モード時に下部に出る一括操作バー（JS で表示／非表示） -->
+  <div class="bulk-bar" id="bulk-bar" hidden></div>
+
+  <!-- ========== モーダル（追加・編集・詳細・確認の共通土台） ========== -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <!-- スクリプト：data.js（データ層）→ app.js（描画・操作）の順で読む -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
