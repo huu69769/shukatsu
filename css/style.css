@@ -440,6 +440,38 @@ body {
 .bulk-bar__count { font-size: 13px; color: var(--teal-deep); font-weight: 500; white-space: nowrap; }
 .bulk-bar__actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
+/* 選択バーが内容を隠さないよう、選択モード中は下部に余白を足す */
+body.is-selecting .board { padding-bottom: 90px; }
+
+/* スマホでは、浮いたカプセルではなく画面下部に貼り付く操作パネルにする。
+ * 中身は上段＝件数、下段＝ボタン2列（A案）。カプセルの丸みで崩れない。 */
+@media (max-width: 640px) {
+  .bulk-bar {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    transform: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    border-radius: 16px 16px 0 0;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  .bulk-bar__count { text-align: center; }
+  .bulk-bar__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* ボタン2列 */
+    gap: 8px;
+  }
+  .bulk-bar__actions .btn {
+    width: 100%;
+    padding: 11px 8px; /* タップしやすい大きさに */
+  }
+  body.is-selecting .board { padding-bottom: 170px; }
+}
+
 /* ============================================================
  * モーダル
  * ============================================================ */

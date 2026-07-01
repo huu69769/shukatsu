@@ -82,6 +82,9 @@ function render() {
     b.classList.toggle("is-active", b.dataset.module === currentModule);
   });
 
+  // 選択バーが出ている間は、内容が隠れないよう body に印を付ける（CSS で下余白を足す）
+  document.body.classList.toggle("is-selecting", selectionMode && currentView === "board");
+
   if (currentView === "detail") {
     tabsEl.hidden = true; // 詳細ではタブを隠して集中できるように
     bulkBarEl.hidden = true;
