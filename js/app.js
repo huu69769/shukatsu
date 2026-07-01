@@ -428,16 +428,20 @@ function jikuCopiesHTML(c) {
 /* 詳細画面：プリセットから追加するピッカー */
 function jikuPickerHTML() {
   const presets = state.jikuPresets || [];
-  if (presets.length === 0) {
-    return `<p class="jiku-hint">「就活の軸」タブでテンプレートを登録すると、ここから選んで使えます。</p>`;
-  }
-  return `<div class="jiku-picker">
+  let html = `<div class="jiku-add">
+    <button type="button" class="btn btn--small btn--primary" data-action="add-jiku-blank">＋ 空で追加</button>`;
+  // 母版がある時だけ「プリセットから選ぶ」も出す
+  if (presets.length) {
+    html += `
+    <span class="jiku-add__or">または プリセットから</span>
     <select id="jiku-picker">
-      <option value="">プリセットから追加…</option>
+      <option value="">選ぶ…</option>
       ${presets.map((p) => `<option value="${p.id}">${esc(p.title || "（無題）")}</option>`).join("")}
     </select>
-    <button type="button" class="btn btn--small" data-action="add-jiku-copy">追加</button>
-  </div>`;
+    <button type="button" class="btn btn--small" data-action="add-jiku-copy">追加</button>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
 /* 母版カードの chip 活性状態を、タイトルの内容に合わせて更新する。
@@ -1066,6 +1070,18 @@ boardEl.addEventListener("click", (e) => {
           saveState();
           renderJiku();
         }
+        return;
+      }
+      case "add-jiku-blank": {
+        // 詳細画面：母版に頼らず、空の軸を直接追加して自分で書く
+        const c = currentDetailCompany();
+        if (!c) return;
+        syncDetailFields(c);
+        c.jiku = c.jiku || [];
+        c.jiku.push({ id: genId(), title: "", body: "" });
+        saveState();
+        renderDetail();
+        showSaved();
         return;
       }
       case "add-jiku-copy": {
