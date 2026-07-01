@@ -55,15 +55,49 @@ function initialOf(name) {
   return s ? s[0] : "・";
 }
 
-/* 面接日が「近い」か（今日〜7日以内）。近ければカードを暖色でハイライト。 */
-function interviewSoon(dateStr) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d.getTime())) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((d - today) / 86400000);
-  return diffDays >= 0 && diffDays <= 7;
+/* ---- 日付まわり（面接日は廃止。予定・記録はすべてタイムラインで扱う） ---- */
+
+/* 今日の 0 時 */
+function today0() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+/* "2026-07-03" → Date（不正なら null） */
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d.getTime()) ? null : d;
+}
+/* タイムラインの中で「これからの予定（日付が今日以降）」のうち、最も近いものを返す */
+function nextUpcoming(c) {
+  const t0 = today0();
+  let best = null;
+  for (const item of c.timeline || []) {
+    const d = parseDate(item.date);
+    if (d && d >= t0) {
+      if (!best || d < parseDate(best.date)) best = item;
+    }
+  }
+  return best;
+}
+/* 直近の予定が 7 日以内か（＝カードを暖色でハイライト） */
+function isSoon(c) {
+  const up = nextUpcoming(c);
+  if (!up) return false;
+  const diff = Math.round((parseDate(up.date) - today0()) / 86400000);
+  return diff >= 0 && diff <= 7;
+}
+/* タイムラインの 1 件が「これから（予定）」かどうか */
+function isFutureEntry(item) {
+  const d = parseDate(item.date);
+  return !!(d && d >= today0());
+}
+/* カード表示用の短い日付 "07/03" */
+function formatMD(dateStr) {
+  const d = parseDate(dateStr);
+  if (!d) return "";
+  return String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0");
 }
 
 /* よく使う SVG アイコン（emoji は使わない方針） */
@@ -264,7 +298,8 @@ function renderOubo() {
 /* 応募済みカード 1 枚分の HTML */
 function cardOubo(c) {
   const selected = selectedIds.has(c.id);
-  const soon = interviewSoon(c.interviewDate);
+  const up = nextUpcoming(c); // 直近の予定
+  const soon = isSoon(c);
   return `
     <article class="card ${soon ? "is-soon" : ""} ${selectionMode && selected ? "is-selected" : ""}" data-id="${c.id}">
       ${selectionMode ? `<span class="card__check ${selected ? "is-on" : ""}"></span>` : ""}
@@ -274,8 +309,8 @@ function cardOubo(c) {
         <p class="card__name">${esc(c.name)}</p>
         <p class="card__role">${esc(c.role || "職種未設定")}</p>
         ${
-          soon
-            ? `<p class="card__soon">${ICON_CLOCK}<span>面接 ${esc(c.interviewDate)}</span></p>`
+          soon && up
+            ? `<p class="card__soon">${ICON_CLOCK}<span>${esc(formatMD(up.date))} ${esc(up.text)}</span></p>`
             : ""
         }
       </div>
@@ -310,13 +345,15 @@ function timelineHTML(c) {
   }
   return `<ul class="timeline">
     ${items
-      .map(
-        (t) => `<li class="timeline__item">
+      .map((t) => {
+        const future = isFutureEntry(t); // これからの予定は暖色＋「予定」
+        return `<li class="timeline__item ${future ? "is-upcoming" : ""}">
       <span class="timeline__date">${esc(t.date || "日付なし")}</span>
+      ${future ? `<span class="timeline__badge">予定</span>` : ""}
       <span class="timeline__text">${esc(t.text)}</span>
       <button type="button" class="timeline__del" data-action="del-timeline" data-id="${c.id}" data-entry="${t.id}" title="削除">×</button>
-    </li>`
-      )
+    </li>`;
+      })
       .join("")}
   </ul>`;
 }
@@ -342,7 +379,8 @@ function renderDetail() {
     exitDetail();
     return;
   }
-  const soon = isOubo && interviewSoon(c.interviewDate);
+  const up = nextUpcoming(c);
+  const soon = isOubo && isSoon(c);
 
   boardEl.innerHTML = `
     <div class="detail">
@@ -353,8 +391,8 @@ function renderDetail() {
         <div class="detail__headmain">
           <h2 class="detail__name">${esc(c.name)}</h2>
           ${
-            soon
-              ? `<p class="detail__soon">${ICON_CLOCK}<span>面接 ${esc(c.interviewDate)}（まもなく）</span></p>`
+            soon && up
+              ? `<p class="detail__soon">${ICON_CLOCK}<span>${esc(formatMD(up.date))} ${esc(up.text)}（まもなく）</span></p>`
               : ""
           }
         </div>
@@ -389,10 +427,6 @@ function renderDetail() {
           <select data-field="stage">
             ${STAGES.map((s) => `<option value="${s.key}" ${c.stage === s.key ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
           </select>
-        </label>
-        <label class="field">
-          <span class="field__label">面接日</span>
-          <input type="date" data-field="interviewDate" value="${esc(c.interviewDate || "")}" />
         </label>
         <label class="field">
           <span class="field__label">ビザサポート</span>
@@ -583,10 +617,6 @@ function openAddModal() {
         isOubo
           ? `
         <label class="field">
-          <span class="field__label">面接日</span>
-          <input type="date" name="interviewDate" />
-        </label>
-        <label class="field">
           <span class="field__label">ビザサポート</span>
           <select name="visa">
             ${VISA_OPTIONS.map((v) => `<option value="${v}">${v}</option>`).join("")}
@@ -623,7 +653,6 @@ function openAddModal() {
         industry,
         url: f.url.value.trim(),
         visa: f.visa.value,
-        interviewDate: f.interviewDate.value || "",
         stage: "entry",
         favorite: false,
         memo: "",
@@ -670,7 +699,6 @@ function applyCompany(id) {
     industry: c.industry || "",
     url: c.url || "",
     visa: "不明",
-    interviewDate: "",
     stage: "entry", // エントリー済みで開始
     favorite: false,
     memo: c.memo || "", // 投稿前に調べたメモをそのまま引き継ぐ
@@ -953,4 +981,24 @@ document.getElementById("import-file").addEventListener("change", (e) => {
 /* ============================================================
  * 起動
  * ============================================================ */
+
+/* 旧データ移行：以前の「面接日(interviewDate)」を、タイムラインの1件に変換する。
+ * （面接日フィールドは廃止し、予定・記録はすべてタイムラインで扱うため） */
+function migrateInterviewDates() {
+  let changed = false;
+  for (const c of state.oubo) {
+    if (c.interviewDate) {
+      c.timeline = c.timeline || [];
+      const exists = c.timeline.some((t) => t.date === c.interviewDate);
+      if (!exists) {
+        c.timeline.push({ id: genId(), date: c.interviewDate, text: "面接" });
+      }
+      c.interviewDate = "";
+      changed = true;
+    }
+  }
+  if (changed) saveState();
+}
+
+migrateInterviewDates();
 render();

@@ -576,6 +576,23 @@ body.is-selecting .board { padding-bottom: 90px; }
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* これからの予定：暖色で目立たせ、「予定」バッジを付ける */
+.timeline__item.is-upcoming {
+  background: var(--warm-bg);
+  border-color: var(--warm-line);
+  border-left-color: var(--warm);
+}
+.timeline__item.is-upcoming .timeline__date { color: var(--warm); }
+.timeline__badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--warm);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .timeline__text {
   font-size: 13px;
   color: var(--ink);
