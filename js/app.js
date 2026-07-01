@@ -336,6 +336,37 @@ function emptyState(title, desc) {
  *   ここは「母版（テンプレート）」を編集できる唯一の場所。
  *   会社カードにはこれを「コピー」して使い、コピーを直しても母版は変わらない。
  * ------------------------------------------------------------ */
+
+/* chip の並び（グループ分けはしない。前半＝主軸型、後半＝条件型の順） */
+const JIKU_CHIPS = [
+  "自己成長",
+  "挑戦",
+  "長所を生かす",
+  "やりがい",
+  "社会貢献",
+  "キャリアアップ",
+  "業務内容",
+  "社内の雰囲気",
+  "研修制度",
+  "評価されたい",
+  "趣味の時間",
+];
+
+/* chip を押したとき、内容が空なら入れる「主軸の骨架（下書き）」 */
+const JIKU_SKELETONS = {
+  自己成長: "〔なぜ〕だから、成長し続けられる環境を求めています。御社の〔特徴〕に惹かれました。",
+  挑戦: "若いうちから裁量を持って挑戦したいと考えています。御社の〔特徴〕に惹かれました。",
+  長所を生かす: "自分の〔強み〕を活かして、〔誰に/何に〕貢献したいと考えています。",
+  やりがい: "〔どんな瞬間〕にやりがいを感じます。だから〔軸〕を大切にしています。",
+  社会貢献: "〔関心のある社会課題〕の解決に、〔手段〕を通じて貢献したいと考えています。",
+  キャリアアップ: "〔将来像〕を目指し、そのために〔何〕を積める環境を求めています。",
+  業務内容: "〔携わりたい業務〕に取り組みたいと考えています。〔なぜ惹かれるか〕だからです。",
+  社内の雰囲気: "〔どんな雰囲気〕の環境で働きたいと考えています。御社の〔社風・特徴〕に魅力を感じています。",
+  研修制度: "入社後も学び続けたいと考えており、〔研修・育成制度〕が整った環境を重視しています。",
+  評価されたい: "成果を正しく評価してもらえる環境で、〔どう成長したいか〕を実現したいと考えています。",
+  趣味の時間: "〔大切にしたい時間〕を大事にしながら、長く働き続けられる環境を求めています。",
+};
+
 function renderJiku() {
   let html = `
     <div class="toolbar">
@@ -358,9 +389,17 @@ function renderJiku() {
     html += `<div class="jiku-list">`;
     for (const p of presets) {
       html += `<div class="jiku-card" data-jiku-id="${p.id}">
-        <input type="text" class="jiku-card__title" data-jikufield="title" data-jiku-id="${p.id}" value="${esc(p.title)}" placeholder="軸のタイトル（例：成長できる環境）" />
-        <textarea class="jiku-card__body" data-jikufield="body" data-jiku-id="${p.id}" rows="4" placeholder="内容（例：若いうちから裁量を持って挑戦したい）">${esc(p.body)}</textarea>
+        <p class="jiku-chips-hint">タグを押すと、タイトルに追加＋下書きが入ります</p>
+        <div class="jiku-chips">
+          ${JIKU_CHIPS.map(
+            (w) =>
+              `<button type="button" class="jiku-chip" data-action="jiku-chip" data-jiku-id="${p.id}" data-word="${esc(w)}" ${p.title.includes(w) ? "disabled" : ""}>${esc(w)}</button>`
+          ).join("")}
+        </div>
+        <input type="text" class="jiku-card__title" data-jikufield="title" data-jiku-id="${p.id}" value="${esc(p.title)}" placeholder="軸のタイトル（例：自己成長・挑戦）" />
+        <textarea class="jiku-card__body" data-jikufield="body" data-jiku-id="${p.id}" rows="4" placeholder="例：〔原体験〕から、〔軸〕を大切にしています。御社の〔特徴〕に惹かれました。">${esc(p.body)}</textarea>
         <div class="jiku-card__foot">
+          <button type="button" class="btn btn--small btn--ghost" data-action="jiku-clear" data-jiku-id="${p.id}">骨架をクリア</button>
           <button type="button" class="btn btn--small btn--ghost btn--danger" data-action="delete-jiku" data-jiku-id="${p.id}">削除</button>
         </div>
       </div>`;
@@ -400,6 +439,15 @@ function jikuPickerHTML() {
     </select>
     <button type="button" class="btn btn--small" data-action="add-jiku-copy">追加</button>
   </div>`;
+}
+
+/* 母版カードの chip 活性状態を、タイトルの内容に合わせて更新する。
+ * タイトルにその語が含まれていれば disabled（灰）にする（＝二度押せない）。
+ * カード全体を描き直さずに更新するので、入力中のカーソルを壊さない。 */
+function updateJikuChips(card, titleValue) {
+  card.querySelectorAll(".jiku-chip").forEach((chip) => {
+    chip.disabled = titleValue.includes(chip.dataset.word);
+  });
 }
 
 /* ============================================================
@@ -969,6 +1017,44 @@ boardEl.addEventListener("click", (e) => {
         renderJiku();
         return;
       }
+      case "jiku-chip": {
+        // chip を押す：語をタイトルへ追加＋（内容が空なら）主軸の骨架を入れる
+        const jid = actionEl.dataset.jikuId;
+        const word = actionEl.dataset.word;
+        const card = actionEl.closest(".jiku-card");
+        const p = (state.jikuPresets || []).find((x) => x.id === jid);
+        if (!p || !card) return;
+        const titleEl = card.querySelector('[data-jikufield="title"]');
+        const bodyEl = card.querySelector('[data-jikufield="body"]');
+        if (!titleEl || !bodyEl) return;
+        // タイトルに追加（「・」で連結。すでに含む場合は追加しない＝二重防止）
+        if (!titleEl.value.includes(word)) {
+          titleEl.value = titleEl.value.trim() ? titleEl.value + "・" + word : word;
+        }
+        // 内容が空のときだけ主軸の骨架を入れる（＝主軸は1つ）
+        if (!bodyEl.value.trim()) {
+          bodyEl.value = JIKU_SKELETONS[word] || "";
+        }
+        p.title = titleEl.value;
+        p.body = bodyEl.value;
+        saveState();
+        updateJikuChips(card, titleEl.value);
+        return;
+      }
+      case "jiku-clear": {
+        // 内容（骨架）をクリアして、別の主軸を入れ直せるようにする
+        const jid = actionEl.dataset.jikuId;
+        const card = actionEl.closest(".jiku-card");
+        const p = (state.jikuPresets || []).find((x) => x.id === jid);
+        const bodyEl = card && card.querySelector('[data-jikufield="body"]');
+        if (bodyEl) bodyEl.value = "";
+        if (p) {
+          p.body = "";
+          saveState();
+        }
+        if (bodyEl) bodyEl.focus();
+        return;
+      }
       case "delete-jiku": {
         // 母版を削除（会社にコピー済みの軸は残る）
         const jid = actionEl.dataset.jikuId;
@@ -1070,6 +1156,15 @@ boardEl.addEventListener("focusout", (e) => {
         showSaved();
       }
     }
+  }
+});
+
+/* 母版タイトルを手入力で変えたときも、chip の活性状態をその場で追従させる */
+boardEl.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset && t.dataset.jikufield === "title") {
+    const card = t.closest(".jiku-card");
+    if (card) updateJikuChips(card, t.value);
   }
 });
 

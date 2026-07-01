@@ -891,7 +891,38 @@ body.is-selecting .board { padding-bottom: 90px; }
   border-color: var(--teal);
   background: #fff;
 }
-.jiku-card__foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.jiku-card__foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+
+/* chip（タグ）ヒントと一覧 */
+.jiku-chips-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 6px;
+}
+.jiku-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.jiku-chip {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--teal-line);
+  background: var(--paper);
+  color: var(--teal-deep);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.jiku-chip:hover:not(:disabled) { background: var(--teal-soft); }
+.jiku-chip:disabled {
+  background: var(--cream-2);
+  color: #b7c4c4;
+  border-color: var(--teal-soft);
+  cursor: default;
+}
 
 /* 会社詳細内のコピー（副本） */
 .jiku-copy {
