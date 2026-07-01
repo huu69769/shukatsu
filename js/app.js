@@ -1,17 +1,21 @@
 /* ============================================================
- * app.js —— 描画と操作のロジック（第一阶段：核心看板）
+ * app.js —— 描画と操作のロジック（第一・第二阶段）
  *
  * 全体の流れ：
- *   1. 画面の状態（今どのモジュール／業界を見ているか等）を変数で持つ
+ *   1. 画面の状態（今どのモジュール／業界／画面を見ているか等）を変数で持つ
  *   2. render() が state を読んで画面を描き直す（基本はこれを呼べば全部更新される）
- *   3. ボタン等の操作 → state を変更 → saveState() → render()
+ *   3. 操作 → state を変更 → saveState() →（必要なら）render()
  *
- * フレームワークを使わないので「state を変えたら render() を呼ぶ」を徹底するのがコツ。
+ * 画面は 2 種類：
+ *   ・一覧（board）… カンバン。モジュール切替・業界・進捗ステージ
+ *   ・詳細（detail）… カードを開くと一覧を置き換えて全体に表示。自動保存。
  * ============================================================ */
 
 /* ---------- 画面の状態（UI state） ---------- */
 let currentModule = "kininaru"; // "kininaru" | "oubo"
 let currentIndustry = "__all__"; // 応募済みで選択中の業界（"__all__" は「すべて」）
+let currentView = "board"; // "board"（一覧）| "detail"（詳細）
+let detailId = null; // 詳細表示中の会社 ID
 let selectionMode = false; // 選択モード中か
 let selectedIds = new Set(); // 選択中の会社 ID
 
@@ -20,6 +24,7 @@ const boardEl = document.getElementById("board");
 const bulkBarEl = document.getElementById("bulk-bar");
 const overlayEl = document.getElementById("modal-overlay");
 const modalEl = document.getElementById("modal");
+const tabsEl = document.getElementById("module-tabs");
 
 /* ============================================================
  * 小さなユーティリティ
@@ -69,6 +74,7 @@ const ICON_CLOCK =
 
 /* ============================================================
  * メイン描画：render()
+ *   currentView によって「一覧」か「詳細」を描く。
  * ============================================================ */
 function render() {
   // モジュールタブの見た目を同期
@@ -76,18 +82,42 @@ function render() {
     b.classList.toggle("is-active", b.dataset.module === currentModule);
   });
 
+  if (currentView === "detail") {
+    tabsEl.hidden = true; // 詳細ではタブを隠して集中できるように
+    bulkBarEl.hidden = true;
+    renderDetail();
+    return;
+  }
+
+  tabsEl.hidden = false;
   if (currentModule === "kininaru") {
     renderKininaru();
   } else {
     renderOubo();
   }
-
   renderBulkBar();
+}
+
+/* 一覧 ⇄ 詳細の切り替え */
+function enterDetail(id) {
+  currentView = "detail";
+  detailId = id;
+  render();
+  window.scrollTo(0, 0);
+}
+function exitDetail() {
+  currentView = "board";
+  detailId = null;
+  render();
+}
+/* 詳細表示中の会社オブジェクトを取得 */
+function currentDetailCompany() {
+  const list = currentModule === "oubo" ? state.oubo : state.kininaru;
+  return list.find((x) => x.id === detailId);
 }
 
 /* ------------------------------------------------------------
  * モジュール①：気になる（未応募リスト）
- *   業界ごとにまとめて一覧表示。進捗ステージは無し。
  * ------------------------------------------------------------ */
 function renderKininaru() {
   const list = state.kininaru;
@@ -109,7 +139,6 @@ function renderKininaru() {
   if (list.length === 0) {
     html += emptyState("まだ会社がありません", "気になる会社を追加してみましょう。");
   } else {
-    // 業界ごとにグループ化（業界未設定は「その他」へ）
     const groups = groupByIndustry(list);
     for (const industry of Object.keys(groups)) {
       html += `<section class="industry-group">
@@ -156,10 +185,8 @@ function cardKininaru(c) {
 
 /* ------------------------------------------------------------
  * モジュール②：応募済み（進捗管理：主モジュール）
- *   業界バー → お気に入り絞り込み → ステージ別レイアウト
  * ------------------------------------------------------------ */
 function renderOubo() {
-  // 業界バー（最左に「すべて」、その右に各業界、末尾に「＋ 業界」）
   const tabs =
     `<button type="button" class="ind-tab ${currentIndustry === "__all__" ? "is-active" : ""}" data-industry="__all__">すべて</button>` +
     state.industries
@@ -194,7 +221,6 @@ function renderOubo() {
     </div>
   `;
 
-  // 表示対象を絞る（業界 + お気に入り）
   let list = state.oubo.slice();
   if (currentIndustry !== "__all__") list = list.filter((c) => c.industry === currentIndustry);
   if (state.settings.favOnly) list = list.filter((c) => c.favorite);
@@ -207,7 +233,6 @@ function renderOubo() {
         : "「会社を追加」から応募済みの会社を登録しましょう。"
     );
   } else {
-    // ステージごとに分けて、空のステージは出さない
     for (const stage of STAGES) {
       const inStage = list.filter((c) => c.stage === stage.key);
       if (inStage.length === 0) continue;
@@ -220,7 +245,7 @@ function renderOubo() {
     }
   }
 
-  // 第二阶段：業界メモ（特定の業界を選んでいるときだけ、その業界の下に表示）
+  // 業界メモ（特定の業界を選んでいるときだけ、その業界の下に表示。フォーカスを外すと自動保存）
   if (currentIndustry !== "__all__") {
     const memo = (state.industryMemos && state.industryMemos[currentIndustry]) || "";
     html += `<section class="industry-memo">
@@ -267,6 +292,227 @@ function emptyState(title, desc) {
 }
 
 /* ============================================================
+ * 詳細ビュー（一覧を置き換えて表示。全項目が自動保存）
+ * ============================================================ */
+
+/* 進捗タイムラインの一覧 HTML（日付の昇順、日付なしは最後） */
+function timelineHTML(c) {
+  const items = (c.timeline || []).slice().sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+  });
+  if (items.length === 0) {
+    return `<p class="timeline__empty">まだ記録がありません。下から追加できます。</p>`;
+  }
+  return `<ul class="timeline">
+    ${items
+      .map(
+        (t) => `<li class="timeline__item">
+      <span class="timeline__date">${esc(t.date || "日付なし")}</span>
+      <span class="timeline__text">${esc(t.text)}</span>
+      <button type="button" class="timeline__del" data-action="del-timeline" data-id="${c.id}" data-entry="${t.id}" title="削除">×</button>
+    </li>`
+      )
+      .join("")}
+  </ul>`;
+}
+
+/* URL を新しいタブで開くリンク行（URL があるときだけ表示） */
+function urlOpenRow(url) {
+  if (!url) return "";
+  return `<p class="url-open"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">ホームページを開く ↗</a></p>`;
+}
+
+/* 業界選択の <datalist>（既存から選ぶ or 新規入力できる） */
+function industryDatalist() {
+  return `<datalist id="industry-options">
+    ${state.industries.map((i) => `<option value="${esc(i)}"></option>`).join("")}
+  </datalist>`;
+}
+
+function renderDetail() {
+  const isOubo = currentModule === "oubo";
+  const c = currentDetailCompany();
+  if (!c) {
+    // 対象が見つからない（削除された等）→ 一覧へ戻す
+    exitDetail();
+    return;
+  }
+  const soon = isOubo && interviewSoon(c.interviewDate);
+
+  boardEl.innerHTML = `
+    <div class="detail">
+      <button type="button" class="detail__back" data-action="back-to-list">← 一覧に戻る</button>
+
+      <div class="detail__head ${soon ? "is-soon" : ""}">
+        <div class="detail__swatch" style="background:${colorFor(c.name)}">${esc(initialOf(c.name))}</div>
+        <div class="detail__headmain">
+          <h2 class="detail__name">${esc(c.name)}</h2>
+          ${
+            soon
+              ? `<p class="detail__soon">${ICON_CLOCK}<span>面接 ${esc(c.interviewDate)}（まもなく）</span></p>`
+              : ""
+          }
+        </div>
+        ${
+          isOubo
+            ? `<button type="button" class="fav-toggle ${c.favorite ? "is-on" : ""}" data-action="toggle-fav" title="お気に入り">${ICON_STAR}</button>`
+            : ""
+        }
+        <span class="save-status" id="save-status">自動保存</span>
+      </div>
+
+      <section class="detail__section">
+        <h3 class="detail__section-title">基本情報</h3>
+        <label class="field">
+          <span class="field__label">会社名 <em>必須</em></span>
+          <input type="text" data-field="name" value="${esc(c.name)}" />
+        </label>
+        <label class="field">
+          <span class="field__label">応募職種</span>
+          <input type="text" data-field="role" value="${esc(c.role || "")}" />
+        </label>
+        ${
+          isOubo
+            ? `
+        <label class="field">
+          <span class="field__label">進捗ステージ</span>
+          <select data-field="stage">
+            ${STAGES.map((s) => `<option value="${s.key}" ${c.stage === s.key ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
+          </select>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span class="field__label">ビザサポート</span>
+            <select data-field="visa">
+              ${VISA_OPTIONS.map((v) => `<option value="${v}" ${c.visa === v ? "selected" : ""}>${v}</option>`).join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">面接日</span>
+            <input type="date" data-field="interviewDate" value="${esc(c.interviewDate || "")}" />
+          </label>
+        </div>`
+            : ""
+        }
+        <label class="field">
+          <span class="field__label">業界</span>
+          <input type="text" data-field="industry" list="industry-options" value="${esc(c.industry || "")}" placeholder="選ぶか、新しく入力" />
+          ${industryDatalist()}
+        </label>
+        <label class="field">
+          <span class="field__label">会社ホームページ URL</span>
+          <input type="url" data-field="url" value="${esc(c.url || "")}" placeholder="https://..." />
+        </label>
+        <span id="url-open-slot">${urlOpenRow(c.url)}</span>
+      </section>
+
+      <section class="detail__section">
+        <h3 class="detail__section-title">会社メモ</h3>
+        <textarea class="detail__memo" data-field="memo" rows="6" placeholder="面接メモ、社風の印象、気づいたことなど（自動保存）">${esc(c.memo || "")}</textarea>
+      </section>
+
+      ${
+        isOubo
+          ? `
+      <section class="detail__section">
+        <h3 class="detail__section-title">進捗タイムライン</h3>
+        ${timelineHTML(c)}
+        <div class="timeline-add">
+          <input type="date" id="tl-date" />
+          <input type="text" id="tl-text" placeholder="内容（例：一次面接 通過）" />
+          <button type="button" class="btn btn--small" data-action="add-timeline" data-id="${c.id}">追加</button>
+        </div>
+      </section>`
+          : ""
+      }
+
+      <div class="detail__actions">
+        ${
+          !isOubo
+            ? `<button type="button" class="btn btn--apply" data-action="apply" data-id="${c.id}">応募した</button>`
+            : `<span></span>`
+        }
+        <button type="button" class="btn btn--ghost btn--danger" data-action="delete-company" data-id="${c.id}">この会社を削除</button>
+      </div>
+    </div>
+  `;
+}
+
+/* 「保存しました ✓」を一瞬表示するための状態表示 */
+let savedTimer = null;
+function showSaved() {
+  const el = document.getElementById("save-status");
+  if (!el) return;
+  el.textContent = "保存しました ✓";
+  el.classList.add("is-saved");
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => {
+    el.textContent = "自動保存";
+    el.classList.remove("is-saved");
+  }, 1500);
+}
+
+/* 1 つの入力欄の値を会社オブジェクトへ保存する（自動保存の本体）。 */
+function saveField(el) {
+  const field = el.dataset.field;
+  if (!field) return;
+  const c = currentDetailCompany();
+  if (!c) return;
+
+  if (field === "name") {
+    const v = el.value.trim();
+    if (!v) {
+      el.value = c.name; // 会社名は必須：空なら元に戻して保存しない
+      return;
+    }
+    c.name = v;
+    // 見出しの会社名・色ブロックも更新（再描画はしない）
+    const nameEl = document.querySelector(".detail__name");
+    if (nameEl) nameEl.textContent = v;
+    const sw = document.querySelector(".detail__swatch");
+    if (sw) {
+      sw.textContent = initialOf(v);
+      sw.style.background = colorFor(v);
+    }
+  } else if (field === "industry") {
+    c.industry = el.value.trim();
+    ensureIndustry(c.industry);
+  } else if (field === "url") {
+    c.url = el.value.trim();
+    // 「ホームページを開く」リンクも更新
+    const slot = document.getElementById("url-open-slot");
+    if (slot) slot.innerHTML = urlOpenRow(c.url);
+  } else if (field === "role") {
+    c.role = el.value.trim();
+  } else {
+    // memo は改行を保つため trim しない。stage / visa / interviewDate はそのまま。
+    c[field] = el.value;
+  }
+  saveState();
+  showSaved();
+}
+
+/* タイムライン操作の前に、編集中の全項目を会社に反映しておく（消えないように）。 */
+function syncDetailFields(c) {
+  document.querySelectorAll("#board [data-field]").forEach((el) => {
+    const field = el.dataset.field;
+    if (field === "name") {
+      const v = el.value.trim();
+      if (v) c.name = v;
+    } else if (field === "industry") {
+      c.industry = el.value.trim();
+      ensureIndustry(c.industry);
+    } else if (field === "url" || field === "role") {
+      c[field] = el.value.trim();
+    } else {
+      c[field] = el.value;
+    }
+  });
+}
+
+/* ============================================================
  * 一括操作バー（選択モード）
  * ============================================================ */
 function renderBulkBar() {
@@ -278,7 +524,6 @@ function renderBulkBar() {
   bulkBarEl.hidden = false;
   const count = selectedIds.size;
 
-  // 気になるは「一括削除」のみ。応募済みは削除＋お気に入り操作。
   let actions = `<button type="button" class="btn btn--danger" data-action="bulk-delete">一括削除</button>`;
   if (currentModule === "oubo") {
     actions =
@@ -297,7 +542,7 @@ function renderBulkBar() {
 }
 
 /* ============================================================
- * モーダル（共通）
+ * モーダル（「会社を追加」専用）
  * ============================================================ */
 function openModal(innerHTML) {
   modalEl.innerHTML = innerHTML;
@@ -308,21 +553,9 @@ function closeModal() {
   modalEl.innerHTML = "";
 }
 
-/* 業界選択の <datalist>（既存から選ぶ or 新規入力できる） */
-function industryDatalist() {
-  return `<datalist id="industry-options">
-    ${state.industries.map((i) => `<option value="${esc(i)}"></option>`).join("")}
-  </datalist>`;
-}
-
-/* ------- 会社の追加モーダル -------
- * モジュールによって項目が変わる：
- *   気になる … 会社名 / 応募職種 / 業界 / URL
- *   応募済み … 上記 + ビザ / 面接日（ステージは「エントリー済み」で開始）
- */
+/* 会社の追加モーダル（追加のときだけモーダルを使う） */
 function openAddModal() {
   const isOubo = currentModule === "oubo";
-  // 応募済みで特定業界を見ているなら、その業界を初期値に
   const presetIndustry = isOubo && currentIndustry !== "__all__" ? currentIndustry : "";
 
   openModal(`
@@ -381,7 +614,6 @@ function openAddModal() {
     const industry = f.industry.value.trim();
 
     if (isOubo) {
-      // 新しい業界なら一覧に足す
       ensureIndustry(industry);
       state.oubo.push({
         id: genId(),
@@ -393,7 +625,6 @@ function openAddModal() {
         interviewDate: f.interviewDate.value || "",
         stage: "entry",
         favorite: false,
-        // 予約フィールド（第二・第三阶段）
         memo: "",
         timeline: [],
         jiku: [],
@@ -405,6 +636,7 @@ function openAddModal() {
         role: f.role.value.trim(),
         industry,
         url: f.url.value.trim(),
+        memo: "", // 気になる段階でも調べたことをメモできる
       });
     }
     saveState();
@@ -420,201 +652,16 @@ function ensureIndustry(industry) {
   }
 }
 
-/* ------- 気になるカードの編集モーダル ------- */
-function openKininaruEdit(c) {
-  openModal(`
-    <form id="form-edit" class="modal__form">
-      <h2 class="modal__title">会社を編集</h2>
-
-      <label class="field">
-        <span class="field__label">会社名 <em>必須</em></span>
-        <input type="text" name="name" required value="${esc(c.name)}" />
-      </label>
-      <label class="field">
-        <span class="field__label">応募職種</span>
-        <input type="text" name="role" value="${esc(c.role || "")}" />
-      </label>
-      <label class="field">
-        <span class="field__label">業界</span>
-        <input type="text" name="industry" list="industry-options" value="${esc(c.industry || "")}" placeholder="選ぶか、新しく入力" />
-        ${industryDatalist()}
-      </label>
-      <label class="field">
-        <span class="field__label">会社ホームページ URL</span>
-        <input type="url" name="url" value="${esc(c.url || "")}" placeholder="https://..." />
-      </label>
-      ${urlOpenRow(c.url)}
-
-      <div class="modal__actions modal__actions--split">
-        <button type="button" class="btn btn--ghost btn--danger" data-action="delete-company" data-id="${c.id}">削除</button>
-        <div class="modal__actions-right">
-          <button type="button" class="btn btn--apply" data-action="apply" data-id="${c.id}">応募した</button>
-          <button type="submit" class="btn btn--primary">保存</button>
-        </div>
-      </div>
-    </form>
-  `);
-
-  document.getElementById("form-edit").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const f = e.target;
-    const name = f.name.value.trim();
-    if (!name) return;
-    c.name = name;
-    c.role = f.role.value.trim();
-    c.industry = f.industry.value.trim();
-    c.url = f.url.value.trim();
-    saveState();
-    closeModal();
-    render();
-  });
-}
-
-/* 進捗タイムラインの一覧 HTML を作る（日付の昇順、日付なしは最後）。 */
-function timelineHTML(c) {
-  const items = (c.timeline || []).slice().sort((a, b) => {
-    if (!a.date) return 1;
-    if (!b.date) return -1;
-    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
-  });
-  if (items.length === 0) {
-    return `<p class="timeline__empty">まだ記録がありません。下から追加できます。</p>`;
-  }
-  return `<ul class="timeline">
-    ${items
-      .map(
-        (t) => `<li class="timeline__item">
-      <span class="timeline__date">${esc(t.date || "日付なし")}</span>
-      <span class="timeline__text">${esc(t.text)}</span>
-      <button type="button" class="timeline__del" data-action="del-timeline" data-id="${c.id}" data-entry="${t.id}" title="削除">×</button>
-    </li>`
-      )
-      .join("")}
-  </ul>`;
-}
-
-/* 詳細フォームの入力値を会社オブジェクト c に書き戻す（保存はしない）。
- * タイムラインの追加/削除でモーダルを開き直す前に、他の入力を失わないよう
- * いったん c に反映させる用途でも使う。会社名が空のときは上書きしない。 */
-function commitDetailForm(c, f) {
-  const name = f.name.value.trim();
-  if (name) c.name = name;
-  c.role = f.role.value.trim();
-  c.stage = f.stage.value;
-  c.visa = f.visa.value;
-  c.interviewDate = f.interviewDate.value || "";
-  c.industry = f.industry.value.trim();
-  ensureIndustry(c.industry);
-  c.url = f.url.value.trim();
-  c.memo = f.memo.value; // メモは改行などを保つため trim しない
-}
-
-/* ------- 応募済みカードの詳細／編集モーダル ------- */
-function openOuboDetail(c) {
-  openModal(`
-    <form id="form-detail" class="modal__form">
-      <div class="modal__head">
-        <h2 class="modal__title">${esc(c.name)}</h2>
-        <button type="button" class="fav-toggle ${c.favorite ? "is-on" : ""}" data-action="toggle-fav" data-id="${c.id}" title="お気に入り">
-          ${ICON_STAR}
-        </button>
-      </div>
-
-      <label class="field">
-        <span class="field__label">会社名 <em>必須</em></span>
-        <input type="text" name="name" required value="${esc(c.name)}" />
-      </label>
-      <label class="field">
-        <span class="field__label">応募職種</span>
-        <input type="text" name="role" value="${esc(c.role || "")}" />
-      </label>
-
-      <label class="field">
-        <span class="field__label">進捗ステージ</span>
-        <select name="stage">
-          ${STAGES.map((s) => `<option value="${s.key}" ${c.stage === s.key ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
-        </select>
-      </label>
-
-      <div class="field-row">
-        <label class="field">
-          <span class="field__label">ビザサポート</span>
-          <select name="visa">
-            ${VISA_OPTIONS.map((v) => `<option value="${v}" ${c.visa === v ? "selected" : ""}>${v}</option>`).join("")}
-          </select>
-        </label>
-        <label class="field">
-          <span class="field__label">面接日</span>
-          <input type="date" name="interviewDate" value="${esc(c.interviewDate || "")}" />
-        </label>
-      </div>
-
-      <label class="field">
-        <span class="field__label">業界</span>
-        <input type="text" name="industry" list="industry-options" value="${esc(c.industry || "")}" />
-        ${industryDatalist()}
-      </label>
-
-      <label class="field">
-        <span class="field__label">会社ホームページ URL</span>
-        <input type="url" name="url" value="${esc(c.url || "")}" placeholder="https://..." />
-      </label>
-      ${urlOpenRow(c.url)}
-
-      <!-- 第二阶段：会社メモ（自由記述） -->
-      <label class="field">
-        <span class="field__label">会社メモ</span>
-        <textarea name="memo" rows="4" placeholder="面接メモ、社風の印象、気づいたことなど">${esc(c.memo || "")}</textarea>
-      </label>
-
-      <!-- 第二阶段：進捗タイムライン（日付＋内容を手動で追加） -->
-      <div class="field">
-        <span class="field__label">進捗タイムライン</span>
-        ${timelineHTML(c)}
-        <div class="timeline-add">
-          <input type="date" id="tl-date" />
-          <input type="text" id="tl-text" placeholder="内容（例：一次面接 通過）" />
-          <button type="button" class="btn btn--small" data-action="add-timeline" data-id="${c.id}">追加</button>
-        </div>
-      </div>
-
-      <div class="modal__actions modal__actions--split">
-        <button type="button" class="btn btn--ghost btn--danger" data-action="delete-company" data-id="${c.id}">削除</button>
-        <div class="modal__actions-right">
-          <button type="button" class="btn btn--ghost" data-action="close">キャンセル</button>
-          <button type="submit" class="btn btn--primary">保存</button>
-        </div>
-      </div>
-    </form>
-  `);
-
-  document.getElementById("form-detail").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const f = e.target;
-    if (!f.name.value.trim()) return; // 会社名は必須
-    commitDetailForm(c, f);
-    saveState();
-    closeModal();
-    render();
-  });
-}
-
-/* URL を新しいタブで開くリンク行（URL があるときだけ表示） */
-function urlOpenRow(url) {
-  if (!url) return "";
-  return `<p class="url-open"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">ホームページを開く ↗</a></p>`;
-}
-
 /* ============================================================
  * 各種アクション
  * ============================================================ */
 
-/* 気になる → 応募済み（「応募した」） */
+/* 気になる → 応募済み（「応募した」）。メモも引き継ぐ。 */
 function applyCompany(id) {
   const idx = state.kininaru.findIndex((c) => c.id === id);
   if (idx === -1) return;
   const c = state.kininaru[idx];
-  ensureIndustry(c.industry); // 業界が無ければ自動作成
+  ensureIndustry(c.industry);
   state.oubo.push({
     id: c.id,
     name: c.name,
@@ -625,7 +672,7 @@ function applyCompany(id) {
     interviewDate: "",
     stage: "entry", // エントリー済みで開始
     favorite: false,
-    memo: "",
+    memo: c.memo || "", // 投稿前に調べたメモをそのまま引き継ぐ
     timeline: [],
     jiku: [],
   });
@@ -666,7 +713,6 @@ function deleteIndustry(industry) {
     );
     if (!ok) return;
   }
-  // 業界一覧から外し、その業界の会社も両モジュールから削除
   state.industries = state.industries.filter((i) => i !== industry);
   state.oubo = state.oubo.filter((c) => c.industry !== industry);
   state.kininaru = state.kininaru.filter((c) => c.industry !== industry);
@@ -716,16 +762,18 @@ function bulkFavorite(on) {
  * ============================================================ */
 
 /* モジュールタブ */
-document.getElementById("module-tabs").addEventListener("click", (e) => {
+tabsEl.addEventListener("click", (e) => {
   const btn = e.target.closest(".module-tab");
   if (!btn) return;
   currentModule = btn.dataset.module;
+  currentView = "board"; // 詳細を開いていたら一覧へ
+  detailId = null;
   selectionMode = false;
   selectedIds.clear();
   render();
 });
 
-/* ボード内クリック（追加・選択・カード・業界バー など全部ここで） */
+/* ボード内クリック（一覧・詳細どちらもここで拾う） */
 boardEl.addEventListener("click", (e) => {
   const actionEl = e.target.closest("[data-action]");
   const card = e.target.closest(".card");
@@ -742,16 +790,64 @@ boardEl.addEventListener("click", (e) => {
       case "toggle-select":
         toggleSelectionMode();
         return;
-      case "apply":
-        applyCompany(id);
-        render();
-        return;
       case "add-industry":
         addIndustry();
         return;
       case "delete-industry":
         deleteIndustry(currentIndustry);
         return;
+      case "back-to-list":
+        exitDetail();
+        return;
+      case "apply":
+        // 一覧のカード上ボタン・詳細のボタン どちらからも
+        applyCompany(id);
+        if (currentView === "detail") exitDetail();
+        else render();
+        return;
+      case "delete-company":
+        if (deleteCompany(id)) exitDetail();
+        return;
+      case "toggle-fav": {
+        // 詳細ページのお気に入り星（応募済みのみ）
+        const c = currentDetailCompany();
+        if (c && currentModule === "oubo") {
+          c.favorite = !c.favorite;
+          actionEl.classList.toggle("is-on", c.favorite);
+          saveState();
+          showSaved();
+        }
+        return;
+      }
+      case "add-timeline": {
+        const c = currentDetailCompany();
+        if (!c) return;
+        const dateEl = document.getElementById("tl-date");
+        const textEl = document.getElementById("tl-text");
+        const text = textEl.value.trim();
+        if (!text) {
+          textEl.focus();
+          return;
+        }
+        syncDetailFields(c); // 編集中の他項目を失わないように反映
+        c.timeline = c.timeline || [];
+        c.timeline.push({ id: genId(), date: dateEl.value || "", text });
+        saveState();
+        renderDetail(); // 一覧に追記
+        showSaved();
+        return;
+      }
+      case "del-timeline": {
+        const c = currentDetailCompany();
+        if (!c) return;
+        const entryId = actionEl.dataset.entry;
+        syncDetailFields(c);
+        c.timeline = (c.timeline || []).filter((t) => t.id !== entryId);
+        saveState();
+        renderDetail();
+        showSaved();
+        return;
+      }
     }
   }
 
@@ -762,40 +858,42 @@ boardEl.addEventListener("click", (e) => {
     return;
   }
 
-  // --- カードのクリック ---
+  // --- カードのクリック → 詳細へ（選択モード中は選択トグル） ---
   if (card) {
     const id = card.dataset.id;
     if (selectionMode) {
       toggleSelect(id);
       return;
     }
-    // 通常時：詳細／編集を開く
-    if (currentModule === "kininaru") {
-      const c = state.kininaru.find((x) => x.id === id);
-      if (c) openKininaruEdit(c);
-    } else {
-      const c = state.oubo.find((x) => x.id === id);
-      if (c) openOuboDetail(c);
-    }
+    enterDetail(id);
   }
 });
 
-/* お気に入りのみ表示トグル（change イベント） */
+/* 自動保存：入力欄からフォーカスが外れた時（text / url / textarea など） */
+boardEl.addEventListener("focusout", (e) => {
+  if (e.target.matches && e.target.matches("[data-field]")) {
+    saveField(e.target);
+    return;
+  }
+  // 業界メモの自動保存
+  if (e.target.id === "industry-memo" && currentIndustry !== "__all__") {
+    state.industryMemos = state.industryMemos || {};
+    state.industryMemos[currentIndustry] = e.target.value;
+    saveState();
+  }
+});
+
+/* 自動保存：選択（ステージ・ビザ）や日付は change ですぐ保存。
+ * お気に入りのみ表示トグルもここ。 */
 boardEl.addEventListener("change", (e) => {
   if (e.target.id === "fav-only") {
     state.settings.favOnly = e.target.checked;
     saveState();
     render();
+    return;
   }
-});
-
-/* 業界メモの自動保存（入力欄からフォーカスが外れた時に保存）。
- * 再描画はしない＝入力中のカーソルや他の状態を壊さない。 */
-boardEl.addEventListener("focusout", (e) => {
-  if (e.target.id === "industry-memo" && currentIndustry !== "__all__") {
-    state.industryMemos = state.industryMemos || {};
-    state.industryMemos[currentIndustry] = e.target.value;
-    saveState();
+  if (e.target.matches && e.target.matches("[data-field]")) {
+    saveField(e.target);
   }
 });
 
@@ -819,57 +917,10 @@ bulkBarEl.addEventListener("click", (e) => {
   }
 });
 
-/* モーダル内クリック（閉じる・削除・応募・お気に入りトグル） */
+/* 追加モーダル内クリック（キャンセルのみ。他はフォーム submit で処理） */
 modalEl.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-action]");
-  if (!btn) return;
-  const action = btn.dataset.action;
-  const id = btn.dataset.id;
-
-  if (action === "close") {
-    closeModal();
-  } else if (action === "delete-company") {
-    if (deleteCompany(id)) {
-      closeModal();
-      render();
-    }
-  } else if (action === "apply") {
-    applyCompany(id);
-    closeModal();
-    render();
-  } else if (action === "toggle-fav") {
-    const c = state.oubo.find((x) => x.id === id);
-    if (c) {
-      c.favorite = !c.favorite;
-      btn.classList.toggle("is-on", c.favorite);
-      saveState();
-    }
-  } else if (action === "add-timeline") {
-    // タイムラインに 1 件追加（内容は必須、日付は任意）
-    const c = state.oubo.find((x) => x.id === id);
-    if (!c) return;
-    const dateEl = document.getElementById("tl-date");
-    const textEl = document.getElementById("tl-text");
-    const text = textEl.value.trim();
-    if (!text) {
-      textEl.focus();
-      return;
-    }
-    // 開き直す前に、編集中の他の入力値も c に反映しておく（消えないように）
-    commitDetailForm(c, document.getElementById("form-detail"));
-    c.timeline = c.timeline || [];
-    c.timeline.push({ id: genId(), date: dateEl.value || "", text });
-    saveState();
-    openOuboDetail(c); // 最新の状態で詳細を描き直す
-  } else if (action === "del-timeline") {
-    const c = state.oubo.find((x) => x.id === id);
-    if (!c) return;
-    const entryId = btn.dataset.entry;
-    commitDetailForm(c, document.getElementById("form-detail"));
-    c.timeline = (c.timeline || []).filter((t) => t.id !== entryId);
-    saveState();
-    openOuboDetail(c);
-  }
+  if (btn && btn.dataset.action === "close") closeModal();
 });
 
 /* オーバーレイの外側クリックで閉じる */
@@ -877,9 +928,14 @@ overlayEl.addEventListener("click", (e) => {
   if (e.target === overlayEl) closeModal();
 });
 
-/* Esc キーでモーダルを閉じる */
+/* Esc：モーダルを閉じる／詳細から一覧へ戻る */
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !overlayEl.hidden) closeModal();
+  if (e.key !== "Escape") return;
+  if (!overlayEl.hidden) {
+    closeModal();
+  } else if (currentView === "detail") {
+    exitDetail();
+  }
 });
 
 /* エクスポート／インポート */
@@ -890,7 +946,7 @@ document.getElementById("btn-import").addEventListener("click", () => {
 document.getElementById("import-file").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (file) importData(file, render);
-  e.target.value = ""; // 同じファイルを再選択できるようリセット
+  e.target.value = "";
 });
 
 /* ============================================================

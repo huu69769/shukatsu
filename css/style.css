@@ -658,6 +658,134 @@ body {
 .fav-toggle.is-on .icon--star { fill: var(--gold); }
 
 /* ============================================================
+ * 詳細ビュー（カードを開くと一覧を置き換えて表示）
+ * ============================================================ */
+.detail {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.detail__back {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background: none;
+  border: none;
+  color: var(--teal-deep);
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 12px;
+}
+.detail__back:hover { text-decoration: underline; }
+
+/* 見出し（会社名・色ブロック・お気に入り・保存状態） */
+.detail__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--teal-soft);
+  position: relative;
+}
+.detail__head.is-soon {
+  /* 面接が近いときは見出し帯をほんのり暖色に */
+  background: linear-gradient(180deg, var(--warm-bg), transparent);
+  border-radius: 12px 12px 0 0;
+  padding: 12px 12px 18px;
+  margin: 0 -12px 8px;
+}
+.detail__swatch {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.detail__headmain { flex: 1; min-width: 0; }
+.detail__name {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--teal-deep);
+  margin: 0;
+  word-break: break-word;
+}
+.detail__soon {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--warm);
+  margin: 4px 0 0;
+  font-weight: 500;
+}
+/* 保存状態（右上） */
+.save-status {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  transition: color 0.2s;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.save-status.is-saved { color: var(--teal); font-weight: 600; }
+
+/* セクション（基本情報 / 会社メモ / タイムライン） */
+.detail__section {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--teal-soft);
+}
+.detail__section:last-of-type { border-bottom: none; }
+.detail__section-title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--teal-deep);
+  margin: 0 0 14px;
+}
+.detail__memo {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 12px 14px;
+  border: 1px solid var(--teal-line);
+  border-radius: 10px;
+  background: var(--cream);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 120px;
+}
+.detail__memo:focus { outline: none; border-color: var(--teal); background: #fff; }
+
+/* 詳細下部のアクション（削除・応募した） */
+.detail__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 22px;
+  margin-top: 4px;
+}
+
+/* 詳細ページのお気に入りトグル（星） */
+.detail__head .fav-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 0;
+  align-self: flex-start;
+}
+.detail__head .fav-toggle .icon--star { width: 26px; height: 26px; }
+.detail__head .fav-toggle.is-on .icon--star { fill: var(--gold); }
+
+/* ============================================================
  * スマホ微調整
  * ============================================================ */
 @media (max-width: 480px) {
