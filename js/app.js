@@ -376,6 +376,11 @@ function renderDetail() {
           <span class="field__label">応募職種</span>
           <input type="text" data-field="role" value="${esc(c.role || "")}" />
         </label>
+        <label class="field">
+          <span class="field__label">業界</span>
+          <input type="text" data-field="industry" list="industry-options" value="${esc(c.industry || "")}" placeholder="選ぶか、新しく入力" />
+          ${industryDatalist()}
+        </label>
         ${
           isOubo
             ? `
@@ -385,25 +390,18 @@ function renderDetail() {
             ${STAGES.map((s) => `<option value="${s.key}" ${c.stage === s.key ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
           </select>
         </label>
-        <div class="field-row">
-          <label class="field">
-            <span class="field__label">ビザサポート</span>
-            <select data-field="visa">
-              ${VISA_OPTIONS.map((v) => `<option value="${v}" ${c.visa === v ? "selected" : ""}>${v}</option>`).join("")}
-            </select>
-          </label>
-          <label class="field">
-            <span class="field__label">面接日</span>
-            <input type="date" data-field="interviewDate" value="${esc(c.interviewDate || "")}" />
-          </label>
-        </div>`
+        <label class="field">
+          <span class="field__label">面接日</span>
+          <input type="date" data-field="interviewDate" value="${esc(c.interviewDate || "")}" />
+        </label>
+        <label class="field">
+          <span class="field__label">ビザサポート</span>
+          <select data-field="visa">
+            ${VISA_OPTIONS.map((v) => `<option value="${v}" ${c.visa === v ? "selected" : ""}>${v}</option>`).join("")}
+          </select>
+        </label>`
             : ""
         }
-        <label class="field">
-          <span class="field__label">業界</span>
-          <input type="text" data-field="industry" list="industry-options" value="${esc(c.industry || "")}" placeholder="選ぶか、新しく入力" />
-          ${industryDatalist()}
-        </label>
         <label class="field">
           <span class="field__label">会社ホームページ URL</span>
           <input type="url" data-field="url" value="${esc(c.url || "")}" placeholder="https://..." />
@@ -581,26 +579,26 @@ function openAddModal() {
         ${industryDatalist()}
       </label>
 
-      <label class="field">
-        <span class="field__label">会社ホームページ URL</span>
-        <input type="url" name="url" autocomplete="off" placeholder="https://..." />
-      </label>
-
       ${
         isOubo
           ? `
+        <label class="field">
+          <span class="field__label">面接日</span>
+          <input type="date" name="interviewDate" />
+        </label>
         <label class="field">
           <span class="field__label">ビザサポート</span>
           <select name="visa">
             ${VISA_OPTIONS.map((v) => `<option value="${v}">${v}</option>`).join("")}
           </select>
-        </label>
-        <label class="field">
-          <span class="field__label">面接日</span>
-          <input type="date" name="interviewDate" />
         </label>`
           : ""
       }
+
+      <label class="field">
+        <span class="field__label">会社ホームページ URL</span>
+        <input type="url" name="url" autocomplete="off" placeholder="https://..." />
+      </label>
 
       <div class="modal__actions">
         <button type="button" class="btn btn--ghost" data-action="close">キャンセル</button>
