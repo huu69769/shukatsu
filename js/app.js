@@ -565,6 +565,10 @@ function renderDetail() {
           <input type="url" data-field="url" value="${esc(c.url || "")}" placeholder="https://..." />
         </label>
         <span id="url-open-slot">${urlOpenRow(c.url)}</span>
+        <label class="field">
+          <span class="field__label">会社理念・ビジョン</span>
+          <textarea data-field="vision" rows="3" placeholder="企業が掲げる理念・ビジョン、共感した点など（自動保存）">${esc(c.vision || "")}</textarea>
+        </label>
       </section>
 
       <section class="detail__section">
@@ -837,6 +841,7 @@ function applyCompany(id) {
     stage: "entry", // エントリー済みで開始
     favorite: false,
     memo: c.memo || "", // 投稿前に調べたメモをそのまま引き継ぐ
+    vision: c.vision || "", // 会社理念・ビジョンも引き継ぐ
     timeline: [],
     jiku: [],
   });
