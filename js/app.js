@@ -375,7 +375,6 @@ function renderJiku() {
         <button type="button" class="btn btn--primary" data-action="add-jiku">軸を追加</button>
       </div>
     </div>
-    <p class="jiku-note">ここで登録するのは「テンプレート（母版）」です。会社の詳細画面で選ぶと、その会社に<strong>コピー</strong>されます。会社側で言い回しを直しても、ここの母版は変わりません。</p>
   `;
 
   const presets = state.jikuPresets || [];

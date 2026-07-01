@@ -837,17 +837,6 @@ body.is-selecting .board { padding-bottom: 90px; }
 /* ============================================================
  * 就活の軸（母版タブ ＆ 会社詳細のコピー）
  * ============================================================ */
-.jiku-note {
-  font-size: 13px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-  margin: 0 0 18px;
-  padding: 10px 14px;
-  background: var(--cream-2);
-  border-radius: 10px;
-}
-.jiku-note strong { color: var(--teal-deep); }
-
 .jiku-list { display: flex; flex-direction: column; gap: 14px; }
 
 /* 母版カード */
