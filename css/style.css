@@ -835,8 +835,110 @@ body.is-selecting .board { padding-bottom: 90px; }
 .detail__head .fav-toggle.is-on .icon--star { fill: var(--gold); }
 
 /* ============================================================
+ * 就活の軸（母版タブ ＆ 会社詳細のコピー）
+ * ============================================================ */
+.jiku-note {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  background: var(--cream-2);
+  border-radius: 10px;
+}
+.jiku-note strong { color: var(--teal-deep); }
+
+.jiku-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* 母版カード */
+.jiku-card {
+  border: 1px solid var(--teal-line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 14px;
+}
+.jiku-card__title,
+.jiku-copy__title {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 8px 10px;
+  border: 1px solid var(--teal-line);
+  border-radius: 8px;
+  background: var(--cream);
+  margin-bottom: 8px;
+}
+.jiku-card__body,
+.jiku-copy__body {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+  padding: 10px 12px;
+  border: 1px solid var(--teal-line);
+  border-radius: 8px;
+  background: var(--cream);
+  resize: vertical;
+}
+.jiku-card__title:focus,
+.jiku-card__body:focus,
+.jiku-copy__title:focus,
+.jiku-copy__body:focus {
+  outline: none;
+  border-color: var(--teal);
+  background: #fff;
+}
+.jiku-card__foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+/* 会社詳細内のコピー（副本） */
+.jiku-copy {
+  border: 1px solid var(--teal-soft);
+  border-left: 3px solid var(--teal);
+  border-radius: 8px;
+  background: var(--cream);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.jiku-copy__title, .jiku-copy__body { background: var(--paper); }
+.jiku-copy__remove {
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 0 0;
+}
+.jiku-copy__remove:hover { color: var(--danger); text-decoration: underline; }
+
+.jiku-empty, .jiku-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+.jiku-picker { display: flex; gap: 8px; align-items: center; }
+.jiku-picker select {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--teal-line);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--ink);
+}
+.jiku-picker select:focus { outline: none; border-color: var(--teal); background: #fff; }
+
+/* ============================================================
  * スマホ微調整
  * ============================================================ */
+/* タブが3つになったので、狭い画面では小さめにして収める */
+@media (max-width: 520px) {
+  .module-tabs { gap: 5px; }
+  .module-tab { padding: 9px 14px; font-size: 14px; }
+}
 @media (max-width: 480px) {
   .backup-actions { position: static; margin-top: 14px; }
   .site-header__inner { padding-top: 28px; }

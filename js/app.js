@@ -129,8 +129,10 @@ function render() {
   tabsEl.hidden = false;
   if (currentModule === "kininaru") {
     renderKininaru();
-  } else {
+  } else if (currentModule === "oubo") {
     renderOubo();
+  } else {
+    renderJiku();
   }
   renderBulkBar();
 }
@@ -329,6 +331,77 @@ function emptyState(title, desc) {
   `;
 }
 
+/* ------------------------------------------------------------
+ * モジュール③：就活の軸（プリセット＝母版の管理）
+ *   ここは「母版（テンプレート）」を編集できる唯一の場所。
+ *   会社カードにはこれを「コピー」して使い、コピーを直しても母版は変わらない。
+ * ------------------------------------------------------------ */
+function renderJiku() {
+  let html = `
+    <div class="toolbar">
+      <div class="toolbar__left"><h2 class="toolbar__title">就活の軸</h2></div>
+      <div class="toolbar__right">
+        <button type="button" class="btn btn--primary" data-action="add-jiku">軸を追加</button>
+      </div>
+    </div>
+    <p class="jiku-note">ここで登録するのは「テンプレート（母版）」です。会社の詳細画面で選ぶと、その会社に<strong>コピー</strong>されます。会社側で言い回しを直しても、ここの母版は変わりません。</p>
+  `;
+
+  const presets = state.jikuPresets || [];
+  if (presets.length === 0) {
+    html += `<div class="empty">
+      <p class="empty__title">まだ軸がありません</p>
+      <p class="empty__desc">「なぜこの方向か」をテンプレートとして登録しましょう。</p>
+      <button type="button" class="btn btn--primary" data-action="add-jiku">軸を追加</button>
+    </div>`;
+  } else {
+    html += `<div class="jiku-list">`;
+    for (const p of presets) {
+      html += `<div class="jiku-card" data-jiku-id="${p.id}">
+        <input type="text" class="jiku-card__title" data-jikufield="title" data-jiku-id="${p.id}" value="${esc(p.title)}" placeholder="軸のタイトル（例：成長できる環境）" />
+        <textarea class="jiku-card__body" data-jikufield="body" data-jiku-id="${p.id}" rows="4" placeholder="内容（例：若いうちから裁量を持って挑戦したい）">${esc(p.body)}</textarea>
+        <div class="jiku-card__foot">
+          <button type="button" class="btn btn--small btn--ghost btn--danger" data-action="delete-jiku" data-jiku-id="${p.id}">削除</button>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  boardEl.innerHTML = html;
+}
+
+/* 詳細画面：この会社にコピー済みの軸（副本）一覧 */
+function jikuCopiesHTML(c) {
+  const list = c.jiku || [];
+  if (list.length === 0) {
+    return `<p class="jiku-empty">まだ軸を追加していません。下のプリセットから選べます。</p>`;
+  }
+  return list
+    .map(
+      (j) => `<div class="jiku-copy" data-jiku-id="${j.id}">
+      <input type="text" class="jiku-copy__title" data-copyfield="title" data-jiku-id="${j.id}" value="${esc(j.title)}" placeholder="軸のタイトル" />
+      <textarea class="jiku-copy__body" data-copyfield="body" data-jiku-id="${j.id}" rows="3" placeholder="この会社向けに言い回しを調整…">${esc(j.body)}</textarea>
+      <button type="button" class="jiku-copy__remove" data-action="remove-jiku-copy" data-jiku-id="${j.id}">この軸を外す</button>
+    </div>`
+    )
+    .join("");
+}
+
+/* 詳細画面：プリセットから追加するピッカー */
+function jikuPickerHTML() {
+  const presets = state.jikuPresets || [];
+  if (presets.length === 0) {
+    return `<p class="jiku-hint">「就活の軸」タブでテンプレートを登録すると、ここから選んで使えます。</p>`;
+  }
+  return `<div class="jiku-picker">
+    <select id="jiku-picker">
+      <option value="">プリセットから追加…</option>
+      ${presets.map((p) => `<option value="${p.id}">${esc(p.title || "（無題）")}</option>`).join("")}
+    </select>
+    <button type="button" class="btn btn--small" data-action="add-jiku-copy">追加</button>
+  </div>`;
+}
+
 /* ============================================================
  * 詳細ビュー（一覧を置き換えて表示。全項目が自動保存）
  * ============================================================ */
@@ -447,6 +520,17 @@ function renderDetail() {
         <h3 class="detail__section-title">会社メモ</h3>
         <textarea class="detail__memo" data-field="memo" rows="6" placeholder="面接メモ、社風の印象、気づいたことなど（自動保存）">${esc(c.memo || "")}</textarea>
       </section>
+
+      ${
+        isOubo
+          ? `
+      <section class="detail__section">
+        <h3 class="detail__section-title">就活の軸</h3>
+        ${jikuCopiesHTML(c)}
+        ${jikuPickerHTML()}
+      </section>`
+          : ""
+      }
 
       ${
         isOubo
@@ -877,6 +961,60 @@ boardEl.addEventListener("click", (e) => {
         showSaved();
         return;
       }
+      case "add-jiku": {
+        // 就活の軸タブ：母版を1件追加
+        state.jikuPresets = state.jikuPresets || [];
+        state.jikuPresets.push({ id: genId(), title: "", body: "" });
+        saveState();
+        renderJiku();
+        return;
+      }
+      case "delete-jiku": {
+        // 母版を削除（会社にコピー済みの軸は残る）
+        const jid = actionEl.dataset.jikuId;
+        if (
+          confirm(
+            "この軸（テンプレート）を削除します。会社にコピー済みの軸はそのまま残ります。よろしいですか？"
+          )
+        ) {
+          state.jikuPresets = (state.jikuPresets || []).filter((p) => p.id !== jid);
+          saveState();
+          renderJiku();
+        }
+        return;
+      }
+      case "add-jiku-copy": {
+        // 詳細画面：プリセットを選んでこの会社にコピー（独立した副本）
+        const c = currentDetailCompany();
+        if (!c) return;
+        const sel = document.getElementById("jiku-picker");
+        const pid = sel && sel.value;
+        if (!pid) {
+          if (sel) sel.focus();
+          return;
+        }
+        const preset = (state.jikuPresets || []).find((p) => p.id === pid);
+        if (!preset) return;
+        syncDetailFields(c);
+        c.jiku = c.jiku || [];
+        c.jiku.push({ id: genId(), title: preset.title, body: preset.body }); // 母版とは切り離したコピー
+        saveState();
+        renderDetail();
+        showSaved();
+        return;
+      }
+      case "remove-jiku-copy": {
+        // 詳細画面：この会社から軸（副本）を外す（母版には影響しない）
+        const c = currentDetailCompany();
+        if (!c) return;
+        const jid = actionEl.dataset.jikuId;
+        syncDetailFields(c);
+        c.jiku = (c.jiku || []).filter((j) => j.id !== jid);
+        saveState();
+        renderDetail();
+        showSaved();
+        return;
+      }
     }
   }
 
@@ -900,15 +1038,38 @@ boardEl.addEventListener("click", (e) => {
 
 /* 自動保存：入力欄からフォーカスが外れた時（text / url / textarea など） */
 boardEl.addEventListener("focusout", (e) => {
-  if (e.target.matches && e.target.matches("[data-field]")) {
-    saveField(e.target);
+  const t = e.target;
+  if (t.matches && t.matches("[data-field]")) {
+    saveField(t);
     return;
   }
   // 業界メモの自動保存
-  if (e.target.id === "industry-memo" && currentIndustry !== "__all__") {
+  if (t.id === "industry-memo" && currentIndustry !== "__all__") {
     state.industryMemos = state.industryMemos || {};
-    state.industryMemos[currentIndustry] = e.target.value;
+    state.industryMemos[currentIndustry] = t.value;
     saveState();
+    return;
+  }
+  // 就活の軸：母版（プリセット）の自動保存
+  if (t.dataset && t.dataset.jikufield) {
+    const p = (state.jikuPresets || []).find((x) => x.id === t.dataset.jikuId);
+    if (p) {
+      p[t.dataset.jikufield] = t.value;
+      saveState();
+    }
+    return;
+  }
+  // 就活の軸：会社ごとのコピー（副本）の自動保存
+  if (t.dataset && t.dataset.copyfield) {
+    const c = currentDetailCompany();
+    if (c) {
+      const j = (c.jiku || []).find((x) => x.id === t.dataset.jikuId);
+      if (j) {
+        j[t.dataset.copyfield] = t.value;
+        saveState();
+        showSaved();
+      }
+    }
   }
 });
 
